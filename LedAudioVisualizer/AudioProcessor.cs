@@ -5,17 +5,34 @@ using CSCore.Streams;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using MathNet.Numerics.IntegralTransforms;
+using System.Numerics;
+using CSCore.XAudio2;
 
 namespace LedAudioVisualizer
 {
+    public enum AudioAnalysisType
+    {
+        PulseCodeModulation,
+        FrequencyAnalysis
+    }
     public class AudioProcessor
     {
         private WasapiLoopbackCapture _capture;
         private MMDevice _audioDevice;
         private IWaveSource _waveSource;
 
-        public event EventHandler<float[]> AudioDataAvailable; // Event for visual data (PCM or FFT)
-        public int SampleRate { get; private set; } = 1; // Default sample rate
+        public event EventHandler<float[]> AudioDataAvailable;                      // Event for visual data (FFT)
+        public event EventHandler<(float[], float[], float[])> ColorDataAvailable;  // Event for color data
+        public int NumLeds = 100;
+
+        // Default frequency bands
+        public int redMinFreq = 20;
+        public int redMaxFreq = 200;
+        public int greenMinFreq = 201;
+        public int greenMaxFreq = 2000;
+        public int blueMinFreq = 2001;
+        public int blueMaxFreq = 20000;
 
         public AudioProcessor()
         {
@@ -60,27 +77,260 @@ namespace LedAudioVisualizer
                 if (read > 0)
                 {
                     // Process the audio data here (e.g., send it for visualization)
-                    ProcessAudioData(buffer);
+                    ProcessAudioData_NoFilter(AudioDataAvailable, buffer);
+                    ProcessColorData(ColorDataAvailable, buffer);
                 }
             }
         }
 
-        private void ProcessAudioData(byte[] buffer)
+
+
+        private void ProcessColorData(EventHandler<(float[], float[], float[])> callback, byte[] buffer)
         {
-            // Convert byte[] to float[] for better use in visualization and analysis
-            int sampleCount = buffer.Length / 2; // Since it's 16-bit PCM, 2 bytes per sample
+            int sampleCount = buffer.Length / 2;
             float[] floatBuffer = new float[sampleCount];
 
+            // Convert byte[] to float[] for FFT processing
             for (int i = 0; i < buffer.Length; i += 2)
             {
-                // Convert 2 bytes (16 bits) into a short (Int16) and normalize to -1.0 to 1.0 range
                 short sample = BitConverter.ToInt16(buffer, i);
                 floatBuffer[i / 2] = sample / 32768f; // Normalize 16-bit PCM data to [-1, 1]
             }
 
-            // Raise the event with the processed audio data (normalized float samples)
-            AudioDataAvailable?.Invoke(this, floatBuffer);
+            // Perform FFT
+            Complex[] fftBuffer = new Complex[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                fftBuffer[i] = new Complex(floatBuffer[i], 0); // real part = sample, imaginary part = 0
+            }
+
+            Fourier.Forward(fftBuffer, FourierOptions.Matlab);
+
+            // Define frequency ranges using the custom bands
+            float sampleRate = 44100f; // Assuming 44.1 kHz sample rate
+
+            // Set up arrays to hold the amplitude for each LED
+            int halfNumLeds = NumLeds / 2;  // Half the number of LEDs for mirroring
+            float[] redChannel = new float[halfNumLeds];    // Red channel (bass frequencies)
+            float[] greenChannel = new float[halfNumLeds];  // Green channel (mid frequencies)
+            float[] blueChannel = new float[halfNumLeds];   // Blue channel (high frequencies)
+
+            // Calculate the frequency range for each band
+            float redFreqRange = redMaxFreq - redMinFreq;   // Total range of red frequencies (bass)
+            float greenFreqRange = greenMaxFreq - greenMinFreq; // Total range of green frequencies (mids)
+            float blueFreqRange = blueMaxFreq - blueMinFreq; // Total range of blue frequencies (highs)
+
+            // Loop through the FFT result and map it to the red, green, and blue arrays
+            for (int i = 0; i < sampleCount / 2; i++)
+            {
+                // Calculate the corresponding frequency for the current bin
+                float frequency = (i * sampleRate) / sampleCount;
+
+                // Get the magnitude of the current frequency bin
+                float magnitude = (float)fftBuffer[i].Magnitude;
+
+                // Map frequencies to the red (bass) range
+                if (frequency >= redMinFreq && frequency <= redMaxFreq)
+                {
+                    // Normalize the frequency to the red (bass) LED range
+                    float normalizedFreq = (frequency - redMinFreq) / redFreqRange;
+                    int ledIndex = (int)(normalizedFreq * redChannel.Length); // Map frequency to LED index
+                    if (ledIndex >= 0 && ledIndex < redChannel.Length)
+                    {
+                        redChannel[ledIndex] += magnitude; // Accumulate magnitude at the LED index
+                    }
+                }
+
+                // Map frequencies to the green (mid) range
+                if (frequency >= greenMinFreq && frequency <= greenMaxFreq)
+                {
+                    // Normalize the frequency to the green (mid) LED range
+                    float normalizedFreq = (frequency - greenMinFreq) / greenFreqRange;
+                    int ledIndex = (int)(normalizedFreq * greenChannel.Length); // Map frequency to LED index
+                    if (ledIndex >= 0 && ledIndex < greenChannel.Length)
+                    {
+                        greenChannel[ledIndex] += magnitude; // Accumulate magnitude at the LED index
+                    }
+                }
+
+                // Map frequencies to the blue (high) range
+                if (frequency >= blueMinFreq && frequency <= blueMaxFreq)
+                {
+                    // Normalize the frequency to the blue (high) LED range
+                    float normalizedFreq = (frequency - blueMinFreq) / blueFreqRange;
+                    int ledIndex = (int)(normalizedFreq * blueChannel.Length); // Map frequency to LED index
+                    if (ledIndex >= 0 && ledIndex < blueChannel.Length)
+                    {
+                        blueChannel[ledIndex] += magnitude; // Accumulate magnitude at the LED index
+                    }
+                }
+            }
+
+            // Normalize the arrays to fit within the desired range (optional)
+            //NormalizeArray(redChannel);
+            //NormalizeArray(greenChannel);
+            //NormalizeArray(blueChannel);
+
+            // Mirror the arrays from the center outward
+            float[] fullRedChannel = MirrorArrayOutward(redChannel);
+            float[] fullGreenChannel = MirrorArrayOutward(greenChannel);
+            float[] fullBlueChannel = MirrorArrayOutward(blueChannel);
+
+            // Send the mirrored color data back via callback
+            callback?.Invoke(this, (fullRedChannel, fullGreenChannel, fullBlueChannel));
         }
+
+        // Normalize array values to the range [0, 1]
+        private void NormalizeArray(float[] array)
+        {
+            float max = array.Max();
+            if (max > 0)
+            {
+                for (int i = 0; i < array.Length; i++)
+                {
+                    array[i] /= max; // Normalize all values to [0, 1]
+                }
+            }
+        }
+
+        // Mirror the array outward from the center
+        private float[] MirrorArrayOutward(float[] halfArray)
+        {
+            int fullSize = halfArray.Length * 2;
+            float[] fullArray = new float[fullSize];
+
+            // Start from the center and expand outward
+            int center = fullSize / 2;
+
+            // Copy the first half into both sides of the center
+            for (int i = 0; i < halfArray.Length; i++)
+            {
+                fullArray[center - i - 1] = halfArray[i];  // Fill to the left of the center
+                fullArray[center + i] = halfArray[i];      // Fill to the right of the center
+            }
+
+            return fullArray;
+        }
+
+
+
+
+
+
+
+
+        private void ProcessAudioData_NoFilter(EventHandler<float[]> callback, byte[] buffer)
+        {
+            int sampleCount = buffer.Length / 2;
+            float[] floatBuffer = new float[sampleCount];
+
+            for (int i = 0; i < buffer.Length; i += 2)
+            {
+                short sample = BitConverter.ToInt16(buffer, i);
+                floatBuffer[i / 2] = sample / 32768f;
+            }
+
+            Complex[] fftBuffer = new Complex[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                fftBuffer[i] = new Complex(floatBuffer[i], 0);
+            }
+
+            Fourier.Forward(fftBuffer, FourierOptions.Matlab);
+
+            float[] magnitudes = new float[sampleCount / 2];
+            for (int i = 0; i < sampleCount / 2; i++)
+            {
+                magnitudes[i] = (float)fftBuffer[i].Magnitude;
+            }
+
+            // Send data for visualization
+            callback.Invoke(this, magnitudes);
+        }
+
+
+        private void ProcessAudioData_LowPass(EventHandler<float[]> callback, byte[] buffer)
+        {
+            int sampleCount = buffer.Length / 2;
+            float[] floatBuffer = new float[sampleCount];
+
+            for (int i = 0; i < buffer.Length; i += 2)
+            {
+                short sample = BitConverter.ToInt16(buffer, i);
+                floatBuffer[i / 2] = sample / 32768f;
+            }
+
+            Complex[] fftBuffer = new Complex[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                fftBuffer[i] = new Complex(floatBuffer[i], 0);
+            }
+
+            Fourier.Forward(fftBuffer, FourierOptions.Matlab);
+
+            // Set the cutoff frequency for the low-pass filter
+            float cutoffFrequency = 1000f; // Low-pass cutoff at 1000 Hz
+            int sampleRate = 44100; // Assuming 44.1 kHz sample rate
+            int cutoffBin = (int)(cutoffFrequency / sampleRate * sampleCount);
+
+            // Apply low-pass filter by zeroing out frequencies above the cutoff
+            for (int i = cutoffBin; i < sampleCount / 2; i++)
+            {
+                fftBuffer[i] = new Complex(0, 0);
+            }
+
+            float[] magnitudes = new float[sampleCount / 2];
+            for (int i = 0; i < sampleCount / 2; i++)
+            {
+                magnitudes[i] = (float)fftBuffer[i].Magnitude;
+            }
+
+            // Send filtered data for visualization
+            callback.Invoke(this, magnitudes);
+        }
+
+
+        private void ProcessAudioData_HighPass(EventHandler<float[]> callback, byte[] buffer)
+        {
+            int sampleCount = buffer.Length / 2;
+            float[] floatBuffer = new float[sampleCount];
+
+            for (int i = 0; i < buffer.Length; i += 2)
+            {
+                short sample = BitConverter.ToInt16(buffer, i);
+                floatBuffer[i / 2] = sample / 32768f;
+            }
+
+            Complex[] fftBuffer = new Complex[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                fftBuffer[i] = new Complex(floatBuffer[i], 0);
+            }
+
+            Fourier.Forward(fftBuffer, FourierOptions.Matlab);
+
+            // Set the cutoff frequency for the high-pass filter
+            float cutoffFrequency = 1000f; // High-pass cutoff at 1000 Hz
+            int sampleRate = 44100; // Assuming 44.1 kHz sample rate
+            int cutoffBin = (int)(cutoffFrequency / sampleRate * sampleCount);
+
+            // Apply high-pass filter by zeroing out frequencies below the cutoff
+            for (int i = 0; i < cutoffBin; i++)
+            {
+                fftBuffer[i] = new Complex(0, 0);
+            }
+
+            float[] magnitudes = new float[sampleCount / 2];
+            for (int i = 0; i < sampleCount / 2; i++)
+            {
+                magnitudes[i] = (float)fftBuffer[i].Magnitude;
+            }
+
+            // Send filtered data for visualization
+            callback.Invoke(this, magnitudes);
+        }
+
+
 
         public void StopAudioCapture()
         {
@@ -99,4 +349,13 @@ namespace LedAudioVisualizer
             }
         }
     }
+
+    public static class AudioInterpreter
+    { 
+        public static float[] FrequencySpectrum(float[] inputBuffer)
+        {
+            return inputBuffer.Select(x => (float)Math.Pow(x, 2)).ToArray();
+        }
+    }
+
 }
