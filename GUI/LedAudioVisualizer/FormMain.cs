@@ -19,6 +19,7 @@ namespace LedAudioVisualizer
 
         private bool isStreaming = false;                   // To track if audio is currently being streamed
         private AudioProcessor _audioProcessor;             // Audio processor
+        private DataTransmission _dataTransmission;
 
         private double[] _filterBankData;                   // Array to hold the Y-values for plotting
         private double[] _redColorData;                     // Array to hold the Y-values for plotting
@@ -35,6 +36,7 @@ namespace LedAudioVisualizer
         private ScottPlot.Plottables.VerticalLine blueMinLine;
         private ScottPlot.Plottables.VerticalLine blueMaxLine;
 
+
         private float overallPeak = 1.0f;
         private float decayFactor = 0.99f;  // Controls how fast the peak value decays
         private float riseFactor = 0.01f;   // Controls how fast the peak value increases
@@ -46,7 +48,14 @@ namespace LedAudioVisualizer
             InitializeComponent();
             InitializeListView();
             LoadRunningApplications();
+
             _audioProcessor = new AudioProcessor();
+            _dataTransmission = new DataTransmission("192.168.0.150", 7777); // Customize to your liking. TODO expose to the main form, allow for customization
+            _dataTransmission.Connect();
+            _dataTransmission.DelayMs = (int)numericUpDownDelay.Value;
+            _audioProcessor.redPower = (byte)numericUpDown_RedPower.Value;
+            _audioProcessor.bluePower = (byte)numericUpDown_BluePower.Value;
+            _audioProcessor.greenPower = (byte)numericUpDown_GreenPower.Value;
 
             // Initially disable the Select button
             btnSelectApp.Enabled = false;
@@ -143,10 +152,25 @@ namespace LedAudioVisualizer
             }
         }
 
+
         private void OnColorDataAvailable(object sender, (float[], float[], float[]) audioData)
         {
             // Update the plot with new audio data
             UpdateColorPlot(audioData.Item1, audioData.Item2, audioData.Item3);
+
+
+            System.Drawing.Color[] colors = new System.Drawing.Color[(int)numericUpDownLedCount.Value];
+            for (int i = 0; i < audioData.Item1.Length; i++)
+            {
+                colors[i] = System.Drawing.Color.FromArgb(
+                    0xFF,
+                    (byte)Math.Min(_redColorData[i] * 0xFF / 2, 0xFF),
+                    (byte)Math.Min(_greenColorData[i] * 0xFF / 2, 0xFF),
+                    (byte)Math.Min(_blueColorData[i] * 0xFF / 2, 0xFF)
+                );
+            }
+
+            _dataTransmission.SendData(colors);
         }
 
         // Update plot safely from the background thread
@@ -475,7 +499,33 @@ namespace LedAudioVisualizer
             formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
         }
 
+        private void radioButtonDataTransmissionRate_CheckedChanged(object sender, EventArgs e)
+        {
+            if (((RadioButton)sender).Checked)
+            {
+                _dataTransmission.TransmissionRate = byte.Parse(((RadioButton)sender).Text.Substring(0, 2));
+            }
+        }
 
 
+        private void numericUpDown_RedPower_ValueChanged(object sender, EventArgs e)
+        {
+            _audioProcessor.redPower = (byte)numericUpDown_RedPower.Value;
+        }
+
+        private void numericUpDown_GreenPower_ValueChanged(object sender, EventArgs e)
+        {
+            _audioProcessor.greenPower = (byte)numericUpDown_GreenPower.Value;
+        }
+
+        private void numericUpDown_BluePower_ValueChanged(object sender, EventArgs e)
+        {
+            _audioProcessor.bluePower = (byte)numericUpDown_BluePower.Value;
+        }
+
+        private void numericUpDownDelay_ValueChanged(object sender, EventArgs e)
+        {
+            _dataTransmission.DelayMs = (int)numericUpDownDelay.Value;
+        }
     }
 }

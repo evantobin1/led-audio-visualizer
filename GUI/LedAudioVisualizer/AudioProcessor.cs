@@ -34,6 +34,12 @@ namespace LedAudioVisualizer
         public int blueMinFreq = 2001;
         public int blueMaxFreq = 20000;
 
+        public readonly float MAX_POWER = 10.0f;
+        public byte redPower;
+        public byte greenPower;
+        public byte bluePower;
+
+
         public AudioProcessor()
         {
             using (var mmDeviceEnumerator = new MMDeviceEnumerator())
@@ -83,8 +89,6 @@ namespace LedAudioVisualizer
             }
         }
 
-
-
         private void ProcessColorData(EventHandler<(float[], float[], float[])> callback, byte[] buffer)
         {
             int sampleCount = buffer.Length / 2;
@@ -106,19 +110,26 @@ namespace LedAudioVisualizer
 
             Fourier.Forward(fftBuffer, FourierOptions.Matlab);
 
-            // Define frequency ranges using the custom bands
+            // Define frequency ranges for bass, mids, and highs
             float sampleRate = 44100f; // Assuming 44.1 kHz sample rate
+            int bassStartFreq = redMinFreq;    // Start of bass frequency range
+            int bassEndFreq = redMaxFreq;      // End of bass frequency range
+
+            int midStartFreq = greenMinFreq;
+            int midEndFreq = greenMaxFreq;
+
+            int highStartFreq = blueMinFreq;
 
             // Set up arrays to hold the amplitude for each LED
             int halfNumLeds = NumLeds / 2;  // Half the number of LEDs for mirroring
-            float[] redChannel = new float[halfNumLeds];    // Red channel (bass frequencies)
-            float[] greenChannel = new float[halfNumLeds];  // Green channel (mid frequencies)
-            float[] blueChannel = new float[halfNumLeds];   // Blue channel (high frequencies)
+            float[] redChannel = new float[halfNumLeds];    // Bass (Red)
+            float[] greenChannel = new float[halfNumLeds];  // Mid (Green)
+            float[] blueChannel = new float[halfNumLeds];   // High (Blue)
 
-            // Calculate the frequency range for each band
-            float redFreqRange = redMaxFreq - redMinFreq;   // Total range of red frequencies (bass)
-            float greenFreqRange = greenMaxFreq - greenMinFreq; // Total range of green frequencies (mids)
-            float blueFreqRange = blueMaxFreq - blueMinFreq; // Total range of blue frequencies (highs)
+            // Set the frequency resolution per LED
+            float bassFreqRange = bassEndFreq - bassStartFreq;  // Total range of bass frequencies
+            float midFreqRange = midEndFreq - midStartFreq;     // Total range of mid frequencies
+            float highFreqRange = (sampleRate / 2) - highStartFreq; // Total range of high frequencies
 
             // Loop through the FFT result and map it to the red, green, and blue arrays
             for (int i = 0; i < sampleCount / 2; i++)
@@ -129,95 +140,77 @@ namespace LedAudioVisualizer
                 // Get the magnitude of the current frequency bin
                 float magnitude = (float)fftBuffer[i].Magnitude;
 
-                // Map frequencies to the red (bass) range
-                if (frequency >= redMinFreq && frequency <= redMaxFreq)
+                // Map frequencies to the bass range (Red Channel)
+                if (frequency >= bassStartFreq && frequency <= bassEndFreq)
                 {
-                    // Normalize the frequency to the red (bass) LED range
-                    float normalizedFreq = (frequency - redMinFreq) / redFreqRange;
+                    // Normalize the frequency to the bass LED range
+                    float normalizedFreq = (frequency - bassStartFreq) / bassFreqRange;
+
+                    // Linear cutoff: Apply a scaling factor that decreases with frequency
+                    float linearCutoffFactor = 1.0f - normalizedFreq;  // Gradually decrease the magnitude
+
                     int ledIndex = (int)(normalizedFreq * redChannel.Length); // Map frequency to LED index
                     if (ledIndex >= 0 && ledIndex < redChannel.Length)
                     {
-                        redChannel[ledIndex] += magnitude; // Accumulate magnitude at the LED index
+                        redChannel[ledIndex] += magnitude * linearCutoffFactor; // Apply the cutoff factor
                     }
                 }
 
-                // Map frequencies to the green (mid) range
-                if (frequency >= greenMinFreq && frequency <= greenMaxFreq)
+                // Map frequencies to the mid range (Green Channel)
+                if (frequency >= midStartFreq && frequency <= midEndFreq)
                 {
-                    // Normalize the frequency to the green (mid) LED range
-                    float normalizedFreq = (frequency - greenMinFreq) / greenFreqRange;
+                    // Normalize the frequency to the mid LED range
+                    float normalizedFreq = (frequency - midStartFreq) / midFreqRange;
+
+                    // Linear cutoff: Apply a scaling factor that decreases with frequency
+                    float linearCutoffFactor = 1.0f - normalizedFreq;  // Gradually decrease the magnitude
+
                     int ledIndex = (int)(normalizedFreq * greenChannel.Length); // Map frequency to LED index
                     if (ledIndex >= 0 && ledIndex < greenChannel.Length)
                     {
-                        greenChannel[ledIndex] += magnitude; // Accumulate magnitude at the LED index
+                        greenChannel[ledIndex] += magnitude * linearCutoffFactor; // Apply the cutoff factor
                     }
                 }
 
-                // Map frequencies to the blue (high) range
-                if (frequency >= blueMinFreq && frequency <= blueMaxFreq)
+                // Map frequencies to the high range (Blue Channel)
+                if (frequency >= highStartFreq)
                 {
-                    // Normalize the frequency to the blue (high) LED range
-                    float normalizedFreq = (frequency - blueMinFreq) / blueFreqRange;
+                    // Normalize the frequency to the high LED range
+                    float normalizedFreq = (frequency - highStartFreq) / highFreqRange;
+
+                    // Linear cutoff: Apply a scaling factor that decreases with frequency
+                    float linearCutoffFactor = 1.0f - normalizedFreq;  // Gradually decrease the magnitude
+
                     int ledIndex = (int)(normalizedFreq * blueChannel.Length); // Map frequency to LED index
                     if (ledIndex >= 0 && ledIndex < blueChannel.Length)
                     {
-                        blueChannel[ledIndex] += magnitude; // Accumulate magnitude at the LED index
+                        blueChannel[ledIndex] += magnitude * linearCutoffFactor; // Apply the cutoff factor
                     }
                 }
             }
 
-            // Normalize the arrays to fit within the desired range (optional)
-            //NormalizeArray(redChannel);
-            //NormalizeArray(greenChannel);
-            //NormalizeArray(blueChannel);
-
             // Mirror the arrays from the center outward
-            float[] fullRedChannel = MirrorArrayOutward(redChannel);
-            float[] fullGreenChannel = MirrorArrayOutward(greenChannel);
-            float[] fullBlueChannel = MirrorArrayOutward(blueChannel);
+            float[] fullRedChannel = Utility.MirrorArrayOutward(redChannel);
+            float[] fullGreenChannel = Utility.MirrorArray(greenChannel);
+            float[] fullBlueChannel = Utility.MirrorArray(blueChannel);
+
+            Utility.ScaleArray(fullRedChannel, redPower, MAX_POWER);
+            Utility.ScaleArray(fullGreenChannel, greenPower, MAX_POWER);
+            Utility.ScaleArray(fullBlueChannel, bluePower, MAX_POWER);
+
+            // Apply threshold: Set any values below the threshold to 0
+            Utility.ApplyThreshold(fullRedChannel, 0.10f);  // Example threshold of 0.05
+            Utility.ApplyThreshold(fullGreenChannel, 0.10f);
+            Utility.ApplyThreshold(fullBlueChannel, 0.10f);
+
+            // Apply smoothing: Adjust the middle pixel based on adjacent pixels
+            Utility.SmoothChannel(fullRedChannel);
+            Utility.SmoothChannel(fullGreenChannel);
+            Utility.SmoothChannel(fullBlueChannel);
 
             // Send the mirrored color data back via callback
             callback?.Invoke(this, (fullRedChannel, fullGreenChannel, fullBlueChannel));
         }
-
-        // Normalize array values to the range [0, 1]
-        private void NormalizeArray(float[] array)
-        {
-            float max = array.Max();
-            if (max > 0)
-            {
-                for (int i = 0; i < array.Length; i++)
-                {
-                    array[i] /= max; // Normalize all values to [0, 1]
-                }
-            }
-        }
-
-        // Mirror the array outward from the center
-        private float[] MirrorArrayOutward(float[] halfArray)
-        {
-            int fullSize = halfArray.Length * 2;
-            float[] fullArray = new float[fullSize];
-
-            // Start from the center and expand outward
-            int center = fullSize / 2;
-
-            // Copy the first half into both sides of the center
-            for (int i = 0; i < halfArray.Length; i++)
-            {
-                fullArray[center - i - 1] = halfArray[i];  // Fill to the left of the center
-                fullArray[center + i] = halfArray[i];      // Fill to the right of the center
-            }
-
-            return fullArray;
-        }
-
-
-
-
-
-
-
 
         private void ProcessAudioData_NoFilter(EventHandler<float[]> callback, byte[] buffer)
         {

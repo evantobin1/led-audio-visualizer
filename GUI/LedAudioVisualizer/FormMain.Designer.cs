@@ -28,8 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            ListViewItem listViewItem27 = new ListViewItem("Test1");
-            ListViewItem listViewItem28 = new ListViewItem("Test2");
+            ListViewItem listViewItem1 = new ListViewItem("Test1");
+            ListViewItem listViewItem2 = new ListViewItem("Test2");
             buttonRefreshApps = new Button();
             listViewApplications = new ListView();
             btnSelectApp = new Button();
@@ -44,6 +44,16 @@
             tableLayoutPanel6 = new TableLayoutPanel();
             formsPlotVisualization = new ScottPlot.WinForms.FormsPlot();
             panel3 = new Panel();
+            numericUpDownDelay = new NumericUpDown();
+            label8 = new Label();
+            tableLayoutPanel8 = new TableLayoutPanel();
+            label9 = new Label();
+            numericUpDown_BluePower = new NumericUpDown();
+            numericUpDown_GreenPower = new NumericUpDown();
+            numericUpDown_RedPower = new NumericUpDown();
+            label10 = new Label();
+            label11 = new Label();
+            label12 = new Label();
             numericUpDownLedCount = new NumericUpDown();
             label2 = new Label();
             tableLayoutPanel5 = new TableLayoutPanel();
@@ -64,21 +74,26 @@
             formsPlotFilterbank = new ScottPlot.WinForms.FormsPlot();
             groupBox2 = new GroupBox();
             groupBox1 = new GroupBox();
+            groupBox3 = new GroupBox();
+            radioButton72hz = new RadioButton();
+            radioButton12hz = new RadioButton();
+            radioButton48hz = new RadioButton();
+            radioButton24hz = new RadioButton();
             tableLayoutPanel1 = new TableLayoutPanel();
             tableLayoutPanel3 = new TableLayoutPanel();
             panel1 = new Panel();
             tableLayoutPanel2 = new TableLayoutPanel();
-            radioButton1 = new RadioButton();
-            radioButton2 = new RadioButton();
-            radioButton3 = new RadioButton();
-            groupBox3 = new GroupBox();
-            radioButton4 = new RadioButton();
             ((System.ComponentModel.ISupportInitialize)pictureBoxAppIcon).BeginInit();
             groupBoxSelectedApp.SuspendLayout();
             groupBoxAudioAnalyzer.SuspendLayout();
             tableLayoutPanel4.SuspendLayout();
             tableLayoutPanel6.SuspendLayout();
             panel3.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)numericUpDownDelay).BeginInit();
+            tableLayoutPanel8.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown_BluePower).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown_GreenPower).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown_RedPower).BeginInit();
             ((System.ComponentModel.ISupportInitialize)numericUpDownLedCount).BeginInit();
             tableLayoutPanel5.SuspendLayout();
             panel2.SuspendLayout();
@@ -91,11 +106,11 @@
             ((System.ComponentModel.ISupportInitialize)numericUpDown_RedMax).BeginInit();
             groupBox2.SuspendLayout();
             groupBox1.SuspendLayout();
+            groupBox3.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
             panel1.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
-            groupBox3.SuspendLayout();
             SuspendLayout();
             // 
             // buttonRefreshApps
@@ -115,7 +130,7 @@
             listViewApplications.BackColor = Color.FromArgb(67, 73, 83);
             listViewApplications.Dock = DockStyle.Fill;
             listViewApplications.ForeColor = Color.FromArgb(245, 246, 250);
-            listViewApplications.Items.AddRange(new ListViewItem[] { listViewItem27, listViewItem28 });
+            listViewApplications.Items.AddRange(new ListViewItem[] { listViewItem1, listViewItem2 });
             listViewApplications.Location = new Point(3, 19);
             listViewApplications.Name = "listViewApplications";
             listViewApplications.Size = new Size(691, 531);
@@ -250,6 +265,9 @@
             // panel3
             // 
             panel3.BorderStyle = BorderStyle.FixedSingle;
+            panel3.Controls.Add(numericUpDownDelay);
+            panel3.Controls.Add(label8);
+            panel3.Controls.Add(tableLayoutPanel8);
             panel3.Controls.Add(numericUpDownLedCount);
             panel3.Controls.Add(label2);
             panel3.Dock = DockStyle.Fill;
@@ -259,10 +277,132 @@
             panel3.Size = new Size(182, 250);
             panel3.TabIndex = 2;
             // 
+            // numericUpDownDelay
+            // 
+            numericUpDownDelay.Anchor = AnchorStyles.Top;
+            numericUpDownDelay.Location = new Point(114, 18);
+            numericUpDownDelay.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+            numericUpDownDelay.Name = "numericUpDownDelay";
+            numericUpDownDelay.Size = new Size(54, 23);
+            numericUpDownDelay.TabIndex = 13;
+            numericUpDownDelay.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            numericUpDownDelay.ValueChanged += numericUpDownDelay_ValueChanged;
+            // 
+            // label8
+            // 
+            label8.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            label8.AutoSize = true;
+            label8.Location = new Point(110, 0);
+            label8.Name = "label8";
+            label8.Size = new Size(63, 15);
+            label8.TabIndex = 12;
+            label8.Text = "Delay (ms)";
+            // 
+            // tableLayoutPanel8
+            // 
+            tableLayoutPanel8.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            tableLayoutPanel8.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
+            tableLayoutPanel8.ColumnCount = 2;
+            tableLayoutPanel8.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 45F));
+            tableLayoutPanel8.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel8.Controls.Add(label9, 1, 0);
+            tableLayoutPanel8.Controls.Add(numericUpDown_BluePower, 1, 3);
+            tableLayoutPanel8.Controls.Add(numericUpDown_GreenPower, 1, 2);
+            tableLayoutPanel8.Controls.Add(numericUpDown_RedPower, 1, 1);
+            tableLayoutPanel8.Controls.Add(label10, 0, 3);
+            tableLayoutPanel8.Controls.Add(label11, 0, 2);
+            tableLayoutPanel8.Controls.Add(label12, 0, 1);
+            tableLayoutPanel8.Location = new Point(3, 71);
+            tableLayoutPanel8.Name = "tableLayoutPanel8";
+            tableLayoutPanel8.RowCount = 4;
+            tableLayoutPanel8.RowStyles.Add(new RowStyle(SizeType.Absolute, 18F));
+            tableLayoutPanel8.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3333321F));
+            tableLayoutPanel8.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3333321F));
+            tableLayoutPanel8.RowStyles.Add(new RowStyle(SizeType.Percent, 33.3333321F));
+            tableLayoutPanel8.Size = new Size(174, 107);
+            tableLayoutPanel8.TabIndex = 11;
+            // 
+            // label9
+            // 
+            label9.AutoSize = true;
+            label9.Dock = DockStyle.Fill;
+            label9.Location = new Point(50, 1);
+            label9.Name = "label9";
+            label9.Size = new Size(120, 18);
+            label9.TabIndex = 11;
+            label9.Text = "Power";
+            label9.TextAlign = ContentAlignment.BottomCenter;
+            // 
+            // numericUpDown_BluePower
+            // 
+            numericUpDown_BluePower.Dock = DockStyle.Fill;
+            numericUpDown_BluePower.Location = new Point(50, 81);
+            numericUpDown_BluePower.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
+            numericUpDown_BluePower.Name = "numericUpDown_BluePower";
+            numericUpDown_BluePower.Size = new Size(120, 23);
+            numericUpDown_BluePower.TabIndex = 8;
+            numericUpDown_BluePower.Value = new decimal(new int[] { 2, 0, 0, 0 });
+            numericUpDown_BluePower.ValueChanged += numericUpDown_BluePower_ValueChanged;
+            // 
+            // numericUpDown_GreenPower
+            // 
+            numericUpDown_GreenPower.Dock = DockStyle.Fill;
+            numericUpDown_GreenPower.Location = new Point(50, 52);
+            numericUpDown_GreenPower.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
+            numericUpDown_GreenPower.Name = "numericUpDown_GreenPower";
+            numericUpDown_GreenPower.Size = new Size(120, 23);
+            numericUpDown_GreenPower.TabIndex = 7;
+            numericUpDown_GreenPower.Value = new decimal(new int[] { 2, 0, 0, 0 });
+            numericUpDown_GreenPower.ValueChanged += numericUpDown_GreenPower_ValueChanged;
+            // 
+            // numericUpDown_RedPower
+            // 
+            numericUpDown_RedPower.Dock = DockStyle.Fill;
+            numericUpDown_RedPower.Location = new Point(50, 23);
+            numericUpDown_RedPower.Maximum = new decimal(new int[] { 10, 0, 0, 0 });
+            numericUpDown_RedPower.Name = "numericUpDown_RedPower";
+            numericUpDown_RedPower.Size = new Size(120, 23);
+            numericUpDown_RedPower.TabIndex = 6;
+            numericUpDown_RedPower.Value = new decimal(new int[] { 4, 0, 0, 0 });
+            numericUpDown_RedPower.ValueChanged += numericUpDown_RedPower_ValueChanged;
+            // 
+            // label10
+            // 
+            label10.AutoSize = true;
+            label10.Dock = DockStyle.Fill;
+            label10.Location = new Point(4, 78);
+            label10.Name = "label10";
+            label10.Size = new Size(39, 28);
+            label10.TabIndex = 5;
+            label10.Text = "Blue";
+            label10.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // label11
+            // 
+            label11.AutoSize = true;
+            label11.Dock = DockStyle.Fill;
+            label11.Location = new Point(4, 49);
+            label11.Name = "label11";
+            label11.Size = new Size(39, 28);
+            label11.TabIndex = 3;
+            label11.Text = "Green";
+            label11.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // label12
+            // 
+            label12.AutoSize = true;
+            label12.Dock = DockStyle.Fill;
+            label12.Location = new Point(4, 20);
+            label12.Name = "label12";
+            label12.Size = new Size(39, 28);
+            label12.TabIndex = 1;
+            label12.Text = "Red";
+            label12.TextAlign = ContentAlignment.MiddleLeft;
+            // 
             // numericUpDownLedCount
             // 
             numericUpDownLedCount.Anchor = AnchorStyles.Top;
-            numericUpDownLedCount.Location = new Point(63, 21);
+            numericUpDownLedCount.Location = new Point(7, 18);
             numericUpDownLedCount.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
             numericUpDownLedCount.Name = "numericUpDownLedCount";
             numericUpDownLedCount.Size = new Size(54, 23);
@@ -274,7 +414,7 @@
             // 
             label2.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             label2.AutoSize = true;
-            label2.Location = new Point(59, 3);
+            label2.Location = new Point(3, 0);
             label2.Name = "label2";
             label2.Size = new Size(63, 15);
             label2.TabIndex = 2;
@@ -408,6 +548,7 @@
             // 
             // numericUpDown_RedMin
             // 
+            numericUpDown_RedMin.BackColor = SystemColors.Window;
             numericUpDown_RedMin.Dock = DockStyle.Fill;
             numericUpDown_RedMin.Location = new Point(50, 23);
             numericUpDown_RedMin.Maximum = new decimal(new int[] { 19995, 0, 0, 0 });
@@ -504,6 +645,68 @@
             groupBox1.TabStop = false;
             groupBox1.Text = "Data Transfer";
             // 
+            // groupBox3
+            // 
+            groupBox3.Controls.Add(radioButton72hz);
+            groupBox3.Controls.Add(radioButton12hz);
+            groupBox3.Controls.Add(radioButton48hz);
+            groupBox3.Controls.Add(radioButton24hz);
+            groupBox3.ForeColor = Color.FromArgb(245, 246, 250);
+            groupBox3.Location = new Point(6, 24);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(142, 128);
+            groupBox3.TabIndex = 3;
+            groupBox3.TabStop = false;
+            groupBox3.Text = "Data Transmission Rate";
+            // 
+            // radioButton72hz
+            // 
+            radioButton72hz.AutoSize = true;
+            radioButton72hz.Location = new Point(6, 95);
+            radioButton72hz.Name = "radioButton72hz";
+            radioButton72hz.Size = new Size(51, 19);
+            radioButton72hz.TabIndex = 3;
+            radioButton72hz.TabStop = true;
+            radioButton72hz.Text = "72Hz";
+            radioButton72hz.UseVisualStyleBackColor = true;
+            radioButton72hz.CheckedChanged += radioButtonDataTransmissionRate_CheckedChanged;
+            // 
+            // radioButton12hz
+            // 
+            radioButton12hz.AutoSize = true;
+            radioButton12hz.Location = new Point(6, 22);
+            radioButton12hz.Name = "radioButton12hz";
+            radioButton12hz.Size = new Size(51, 19);
+            radioButton12hz.TabIndex = 0;
+            radioButton12hz.TabStop = true;
+            radioButton12hz.Text = "12Hz";
+            radioButton12hz.UseVisualStyleBackColor = true;
+            radioButton12hz.CheckedChanged += radioButtonDataTransmissionRate_CheckedChanged;
+            // 
+            // radioButton48hz
+            // 
+            radioButton48hz.AutoSize = true;
+            radioButton48hz.Checked = true;
+            radioButton48hz.Location = new Point(6, 72);
+            radioButton48hz.Name = "radioButton48hz";
+            radioButton48hz.Size = new Size(51, 19);
+            radioButton48hz.TabIndex = 2;
+            radioButton48hz.TabStop = true;
+            radioButton48hz.Text = "48Hz";
+            radioButton48hz.UseVisualStyleBackColor = true;
+            radioButton48hz.CheckedChanged += radioButtonDataTransmissionRate_CheckedChanged;
+            // 
+            // radioButton24hz
+            // 
+            radioButton24hz.AutoSize = true;
+            radioButton24hz.Location = new Point(6, 47);
+            radioButton24hz.Name = "radioButton24hz";
+            radioButton24hz.Size = new Size(51, 19);
+            radioButton24hz.TabIndex = 1;
+            radioButton24hz.Text = "24Hz";
+            radioButton24hz.UseVisualStyleBackColor = true;
+            radioButton24hz.CheckedChanged += radioButtonDataTransmissionRate_CheckedChanged;
+            // 
             // tableLayoutPanel1
             // 
             tableLayoutPanel1.ColumnCount = 2;
@@ -561,65 +764,6 @@
             tableLayoutPanel2.Size = new Size(704, 705);
             tableLayoutPanel2.TabIndex = 13;
             // 
-            // radioButton1
-            // 
-            radioButton1.AutoSize = true;
-            radioButton1.Location = new Point(6, 22);
-            radioButton1.Name = "radioButton1";
-            radioButton1.Size = new Size(51, 19);
-            radioButton1.TabIndex = 0;
-            radioButton1.TabStop = true;
-            radioButton1.Text = "12Hz";
-            radioButton1.UseVisualStyleBackColor = true;
-            // 
-            // radioButton2
-            // 
-            radioButton2.AutoSize = true;
-            radioButton2.Checked = true;
-            radioButton2.Location = new Point(6, 47);
-            radioButton2.Name = "radioButton2";
-            radioButton2.Size = new Size(51, 19);
-            radioButton2.TabIndex = 1;
-            radioButton2.TabStop = true;
-            radioButton2.Text = "24Hz";
-            radioButton2.UseVisualStyleBackColor = true;
-            // 
-            // radioButton3
-            // 
-            radioButton3.AutoSize = true;
-            radioButton3.Location = new Point(6, 72);
-            radioButton3.Name = "radioButton3";
-            radioButton3.Size = new Size(51, 19);
-            radioButton3.TabIndex = 2;
-            radioButton3.TabStop = true;
-            radioButton3.Text = "48Hz";
-            radioButton3.UseVisualStyleBackColor = true;
-            // 
-            // groupBox3
-            // 
-            groupBox3.Controls.Add(radioButton4);
-            groupBox3.Controls.Add(radioButton1);
-            groupBox3.Controls.Add(radioButton3);
-            groupBox3.Controls.Add(radioButton2);
-            groupBox3.ForeColor = Color.FromArgb(245, 246, 250);
-            groupBox3.Location = new Point(6, 24);
-            groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(142, 128);
-            groupBox3.TabIndex = 3;
-            groupBox3.TabStop = false;
-            groupBox3.Text = "Data Transmission Rate";
-            // 
-            // radioButton4
-            // 
-            radioButton4.AutoSize = true;
-            radioButton4.Location = new Point(6, 95);
-            radioButton4.Name = "radioButton4";
-            radioButton4.Size = new Size(51, 19);
-            radioButton4.TabIndex = 3;
-            radioButton4.TabStop = true;
-            radioButton4.Text = "72Hz";
-            radioButton4.UseVisualStyleBackColor = true;
-            // 
             // FormMain
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -638,6 +782,12 @@
             tableLayoutPanel6.ResumeLayout(false);
             panel3.ResumeLayout(false);
             panel3.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)numericUpDownDelay).EndInit();
+            tableLayoutPanel8.ResumeLayout(false);
+            tableLayoutPanel8.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown_BluePower).EndInit();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown_GreenPower).EndInit();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown_RedPower).EndInit();
             ((System.ComponentModel.ISupportInitialize)numericUpDownLedCount).EndInit();
             tableLayoutPanel5.ResumeLayout(false);
             panel2.ResumeLayout(false);
@@ -652,12 +802,12 @@
             ((System.ComponentModel.ISupportInitialize)numericUpDown_RedMax).EndInit();
             groupBox2.ResumeLayout(false);
             groupBox1.ResumeLayout(false);
+            groupBox3.ResumeLayout(false);
+            groupBox3.PerformLayout();
             tableLayoutPanel1.ResumeLayout(false);
             tableLayoutPanel3.ResumeLayout(false);
             panel1.ResumeLayout(false);
             tableLayoutPanel2.ResumeLayout(false);
-            groupBox3.ResumeLayout(false);
-            groupBox3.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -706,5 +856,22 @@
         private RadioButton radioButton1;
         private GroupBox groupBox3;
         private RadioButton radioButton4;
+        private RadioButton radioButton72hz;
+        private RadioButton radioButton12hz;
+        private RadioButton radioButton48hz;
+        private RadioButton radioButton24hz;
+        private TableLayoutPanel tableLayoutPanel8;
+        private Label label9;
+        private NumericUpDown numericUpDown1;
+        private NumericUpDown numericUpDown3;
+        private NumericUpDown numericUpDown5;
+        private Label label10;
+        private Label label11;
+        private Label label12;
+        private NumericUpDown numericUpDown_RedPower;
+        private NumericUpDown numericUpDown_BluePower;
+        private NumericUpDown numericUpDown_GreenPower;
+        private NumericUpDown numericUpDownDelay;
+        private Label label8;
     }
 }
