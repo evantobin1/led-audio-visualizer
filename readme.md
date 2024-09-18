@@ -37,7 +37,7 @@ The project relies on the following libraries:
 1. **Clone this repository**:
 
    ```bash
-   git clone https://github.com/evantobin1/LedAudioVisualizer.git
+   git clone https://github.com/evantobin1/led-audio-visualizer.git
    ```
 
 2. **Open the project** in Visual Studio.
