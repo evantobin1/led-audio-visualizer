@@ -16,7 +16,7 @@ The project relies on the following libraries:
 
 - **CSCore**: For capturing system audio (loopback capture).
 - **ScottPlot.WinForms**: For plotting real-time audio data.
-- **.NET Framework 4.6+** or **.NET Core 3.1+** / **.NET 5+**: Required to run the application.
+- **.NET 6.0+**: Required to run the application.
 
 ## Getting Started
 
@@ -33,4 +33,4 @@ The project relies on the following libraries:
 1. Clone this repository:
 
    ```bash
-   git clone https://github.com/your-username/LedAudioVisualizer.git
+   git clone https://github.com/evantobin1/LedAudioVisualizer.git
