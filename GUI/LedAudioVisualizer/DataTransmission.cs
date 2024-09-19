@@ -1,7 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-using System.Drawing;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 
 namespace LedAudioVisualizer
@@ -34,22 +31,8 @@ namespace LedAudioVisualizer
         // Method to connect to the ESP8266/ESP32, validates the connection
         public bool Connect()
         {
-            try
-            {
-                // Send a test message or perform a basic "ping" or handshake validation (optional)
-                byte[] testMessage = new byte[] { 0x00 }; // Example ping message
-                udpClient.Send(testMessage, testMessage.Length, targetEndPoint);
-
-
-                // Optionally wait for a response from the ESP to confirm it's ready (e.g., if you implement a handshake on the ESP)
-                isConnected = true;  // Mark as connected for further operations
-                return true;
-            }
-            catch
-            {
-                isConnected = false;
-                return false;
-            }
+            isConnected = true;
+            return true;
         }
 
         // Method to send data in chunks
@@ -105,7 +88,7 @@ namespace LedAudioVisualizer
 
 
         // Prepares a packet of data for transmission
-        private byte[] PreparePacket(Color[] ledData, int startIndex, int numLeds, bool isFinalPacket)
+        private static byte[] PreparePacket(Color[] ledData, int startIndex, int numLeds, bool isFinalPacket)
         {
             // Create the packet with a fixed size of 501 bytes
             byte[] packet = new byte[PacketSize];

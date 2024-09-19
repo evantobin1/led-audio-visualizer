@@ -1,229 +1,85 @@
-﻿using ScottPlot;
-
-using CSCore.CoreAudioAPI;
-using CSCore.SoundIn;
-using ScottPlot.WinForms;
-using System;
+﻿using CSCore.CoreAudioAPI;
+using LedAudioVisualizer.Visualizers;
 using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace LedAudioVisualizer
 {
     public partial class FormMain : Form
     {
-        private ImageList appImageList = new ImageList();   // ImageList to store application icons
-        private string selectedProcessId;                   // To store the selected Process ID
-
+        private readonly ImageList appImageList = new();    // ImageList to store application icons
+        private string selectedProcessId = "";              // To store the selected Process ID
         private bool isStreaming = false;                   // To track if audio is currently being streamed
-        private AudioProcessor _audioProcessor;             // Audio processor
-        private DataTransmission _dataTransmission;
+
+        private uint _numLeds = 300;
+        private readonly int _transmissionRate = 48;
+        private int _delayMs = 0;
+        private DateTime _lastTransmissionTime = DateTime.Now;
+        private readonly DataTransmission _dataTransmission;
+
+        private AudioListener _audioListener;
+        private readonly IAudioVisualizer _audioVisualizer;
 
         private double[] _filterBankData;                   // Array to hold the Y-values for plotting
         private double[] _redColorData;                     // Array to hold the Y-values for plotting
         private double[] _greenColorData;                   // Array to hold the Y-values for plotting
         private double[] _blueColorData;                    // Array to hold the Y-values for plotting
-        private int _filterBankPlotMaxPoints = 20000;        // Human hearing is from 20Hz - 20kHz
-        private int _colorDataPlotMaxPoints;                // Number of LEDS TODO change 
-
-        // Refernces to the veritcal lines
-        private ScottPlot.Plottables.VerticalLine redMinLine;
-        private ScottPlot.Plottables.VerticalLine redMaxLine;
-        private ScottPlot.Plottables.VerticalLine greenMinLine;
-        private ScottPlot.Plottables.VerticalLine greenMaxLine;
-        private ScottPlot.Plottables.VerticalLine blueMinLine;
-        private ScottPlot.Plottables.VerticalLine blueMaxLine;
+        private uint _redPowerPercent = 100;
+        private uint _greenPowerPercent = 100;
+        private uint _bluePowerPercent = 100;
+        private readonly int _filterBankPlotMaxPoints = 24000;
 
 
-        private float overallPeak = 1.0f;
-        private float decayFactor = 0.99f;  // Controls how fast the peak value decays
-        private float riseFactor = 0.01f;   // Controls how fast the peak value increases
-        private const float minPeakValue = 0.01f;  // To prevent division by zero
+        private float _overallPeak = 1.0f;                  // Track the overall peak (initialize to a reasonable value)
+        private const float _peakDecayFactor = 0.995f;      // Slow decay over time
+        private const int _windowSizeInSeconds = 5;         // Time window to track peak
+        private readonly Queue<float> _peakHistory = new(); // Track recent peaks for moving average
+
+        private readonly Dictionary<string, Type> VisualizationTypes = new()
+        {
+            { "Spectrum", typeof(SpectrumAudioVisualizer) },
+        };
 
 
         public FormMain()
         {
             InitializeComponent();
-            InitializeListView();
-            LoadRunningApplications();
 
-            _audioProcessor = new AudioProcessor();
+            // Initialize UI
+            InitializeUI();
+            LoadRunningApplications();
+            btnSelectApp.Enabled = false; // Initially disable the Select button
+            groupBoxSelectedApp.Visible = false;
+
             _dataTransmission = new DataTransmission("192.168.0.150", 7777); // Customize to your liking. TODO expose to the main form, allow for customization
             _dataTransmission.Connect();
             _dataTransmission.DelayMs = (int)numericUpDownDelay.Value;
-            _audioProcessor.redPower = (byte)numericUpDown_RedPower.Value;
-            _audioProcessor.bluePower = (byte)numericUpDown_BluePower.Value;
-            _audioProcessor.greenPower = (byte)numericUpDown_GreenPower.Value;
 
-            // Initially disable the Select button
-            btnSelectApp.Enabled = false;
+            _audioVisualizer = new SpectrumAudioVisualizer();
 
-            // Subscribe to the SelectedIndexChanged event for the ListView
-            listViewApplications.SelectedIndexChanged += ListViewApplications_SelectedIndexChanged;
+            ((SpectrumAudioVisualizer)_audioVisualizer).redMinFreq = (int)numericUpDown_RedMin.Value;
+            ((SpectrumAudioVisualizer)_audioVisualizer).redMaxFreq = (int)numericUpDown_RedMax.Value;
+            ((SpectrumAudioVisualizer)_audioVisualizer).greenMinFreq = (int)numericUpDown_GreenMin.Value;
+            ((SpectrumAudioVisualizer)_audioVisualizer).greenMaxFreq = (int)numericUpDown_GreenMax.Value;
+            ((SpectrumAudioVisualizer)_audioVisualizer).blueMinFreq = (int)numericUpDown_BlueMin.Value;
+            ((SpectrumAudioVisualizer)_audioVisualizer).blueMaxFreq = (int)numericUpDown_BlueMax.Value;
 
-            // Set default label text
-            SetNoAppSelectedState();
-
-            // Initialize the ScottPlot control and audio processor
-            InitializeUI();
-            _audioProcessor.AudioDataAvailable += OnAudioDataAvailable;
-            _audioProcessor.ColorDataAvailable += OnColorDataAvailable;
+            _filterBankData = new double[_numLeds];
+            _redColorData = new double[_numLeds];
+            _greenColorData = new double[_numLeds];
+            _blueColorData = new double[_numLeds];
 
             // Handle form closed event
-            this.FormClosed += FormMain_FormClosed;
+            FormClosed += FormMain_FormClosed;
         }
 
         private void InitializeUI()
         {
-            // Initialize NUM LEDS
-            _colorDataPlotMaxPoints = (int)numericUpDownLedCount.Value;
-            _audioProcessor.NumLeds = _colorDataPlotMaxPoints;
+            // Initialize all variables retreived from the UI
+            _numLeds = (uint)numericUpDownLedCount.Value;
+            _redPowerPercent = (uint)numericUpDown_RedPower.Value;
+            _greenPowerPercent = (uint)numericUpDown_GreenPower.Value;
+            _bluePowerPercent = (uint)numericUpDown_BluePower.Value;
 
-
-            // Set plot axis limits and labels
-            formsPlotFilterbank.Plot.Title("Real-Time Audio Visualization");
-            formsPlotFilterbank.Plot.YLabel("Amplitude");
-            formsPlotFilterbank.Plot.XLabel("Frequency (Hz)");
-
-            // Set up the array to hold Y-values for the plot
-            _filterBankData = new double[_filterBankPlotMaxPoints];
-
-            // Add a ScottPlot signal plot to the formsPlot
-            formsPlotFilterbank.Plot.Add.Signal(_filterBankData);
-            redMinLine = formsPlotFilterbank.Plot.Add.VerticalLine((double)numericUpDown_RedMin.Value, color: ScottPlot.Color.FromColor(System.Drawing.Color.Red));
-            redMaxLine = formsPlotFilterbank.Plot.Add.VerticalLine((double)numericUpDown_RedMax.Value, color: ScottPlot.Color.FromColor(System.Drawing.Color.Red));
-            greenMinLine = formsPlotFilterbank.Plot.Add.VerticalLine((double)numericUpDown_GreenMin.Value, color: ScottPlot.Color.FromColor(System.Drawing.Color.Green));
-            greenMaxLine = formsPlotFilterbank.Plot.Add.VerticalLine((double)numericUpDown_GreenMax.Value, color: ScottPlot.Color.FromColor(System.Drawing.Color.Green));
-            blueMinLine = formsPlotFilterbank.Plot.Add.VerticalLine((double)numericUpDown_BlueMin.Value, color: ScottPlot.Color.FromColor(System.Drawing.Color.Blue));
-            blueMaxLine = formsPlotFilterbank.Plot.Add.VerticalLine((double)numericUpDown_BlueMax.Value, color: ScottPlot.Color.FromColor(System.Drawing.Color.Blue));
-
-            formsPlotFilterbank.Refresh();
-
-
-
-            // Set plot axis limits and labels
-            formsPlotVisualization.Plot.Title("Color Visualization");
-            formsPlotVisualization.Plot.YLabel("Brightness");
-            formsPlotVisualization.Plot.XLabel("LED");
-
-            // Set up the array to hold Y-values for the plot
-            _redColorData = new double[_colorDataPlotMaxPoints];
-            _greenColorData = new double[_colorDataPlotMaxPoints];
-            _blueColorData = new double[_colorDataPlotMaxPoints];
-
-            // Add a ScottPlot signal plot to the formsPlot
-            formsPlotVisualization.Plot.Add.Signal(_redColorData, color: ScottPlot.Color.FromColor(System.Drawing.Color.Red));
-            formsPlotVisualization.Plot.Add.Signal(_greenColorData, color: ScottPlot.Color.FromColor(System.Drawing.Color.Green));
-            formsPlotVisualization.Plot.Add.Signal(_blueColorData, color: ScottPlot.Color.FromColor(System.Drawing.Color.Blue));
-
-            formsPlotVisualization.Refresh();
-
-
-        }
-
-
-        private void OnAudioDataAvailable(object sender, float[] audioData)
-        {
-            // Update the plot with new audio data
-            UpdateFilterBankPlot(audioData);
-        }
-
-        // Update plot safely from the background thread
-        private void UpdateFilterBankPlot(float[] audioData)
-        {
-            // Check if the current thread is the UI thread
-            if (formsPlotFilterbank.InvokeRequired)
-            {
-                // If we're on a background thread, marshal the update back to the UI thread
-                formsPlotFilterbank.Invoke(new Action(() => UpdateFilterBankPlot(audioData)));
-            }
-            else
-            {
-                // Convert float[] to double[] and update _filterBankData for ScottPlot
-                for (int i = 0; i < Math.Min(audioData.Length, _filterBankPlotMaxPoints); i++)
-                {
-                    _filterBankData[i] = audioData[i]; // ScottPlot uses double[] for plotting
-                }
-
-                // Redraw the plot with updated data
-                formsPlotFilterbank.Refresh();
-            }
-        }
-
-
-        private void OnColorDataAvailable(object sender, (float[], float[], float[]) audioData)
-        {
-            // Update the plot with new audio data
-            UpdateColorPlot(audioData.Item1, audioData.Item2, audioData.Item3);
-
-
-            System.Drawing.Color[] colors = new System.Drawing.Color[(int)numericUpDownLedCount.Value];
-            for (int i = 0; i < audioData.Item1.Length; i++)
-            {
-                colors[i] = System.Drawing.Color.FromArgb(
-                    0xFF,
-                    (byte)Math.Min(_redColorData[i] * 0xFF / 2, 0xFF),
-                    (byte)Math.Min(_greenColorData[i] * 0xFF / 2, 0xFF),
-                    (byte)Math.Min(_blueColorData[i] * 0xFF / 2, 0xFF)
-                );
-            }
-
-            _dataTransmission.SendData(colors);
-        }
-
-        // Update plot safely from the background thread
-        private void UpdateColorPlot(float[] red, float[] green, float[] blue)
-        {
-            // Check if the current thread is the UI thread
-            if (formsPlotVisualization.InvokeRequired)
-            {
-                formsPlotVisualization.Invoke(new Action(() => UpdateColorPlot(red, green, blue)));
-            }
-            else
-            {
-                // Find the maximum value across all channels in the current update
-                float maxCurrent = Math.Max(red.Max(), Math.Max(green.Max(), blue.Max()));
-
-                // Update the overall peak with a combination of rising fast and decaying slow
-                overallPeak = Math.Max(overallPeak * decayFactor, maxCurrent * riseFactor + overallPeak * (1 - riseFactor));
-
-                // Prevent peak from going too low (avoid division by zero or extremely small values)
-                overallPeak = Math.Max(overallPeak, minPeakValue);
-
-                // Normalize all color data based on the overall peak
-                for (int i = 0; i < _redColorData.Length && i < red.Length; i++)
-                {
-                    _redColorData[i] = red[i] / overallPeak;
-                }
-
-                for (int i = 0; i < _greenColorData.Length && i < green.Length; i++)
-                {
-                    _greenColorData[i] = green[i] / overallPeak;
-                }
-
-                for (int i = 0; i < _blueColorData.Length && i < blue.Length; i++)
-                {
-                    _blueColorData[i] = blue[i] / overallPeak;
-                }
-
-                // Redraw the plot with updated data
-                formsPlotVisualization.Refresh();
-            }
-        }
-
-
-
-        private void FormMain_FormClosed(object sender, FormClosedEventArgs e)
-        {
-            // Stop audio capture and exit the application
-            _audioProcessor.StopAudioCapture();
-            Application.Exit();
-        }
-
-        private void InitializeListView()
-        {
             // Set up columns for the ListView
             listViewApplications.Items.Clear();
             listViewApplications.Columns.Clear();
@@ -239,12 +95,151 @@ namespace LedAudioVisualizer
             // Set up ImageList for icons
             appImageList.ImageSize = new Size(32, 32); // Set the size of the icons
             listViewApplications.SmallImageList = appImageList; // Assign the ImageList to the ListView
+
+            // Add all of the visualization types
+            ComboBoxVisualziationTypes.Items.AddRange(VisualizationTypes.Keys.ToArray());
+            if (ComboBoxVisualziationTypes.Items.Count > 0)
+            {
+                ComboBoxVisualziationTypes.SelectedIndex = 0;
+            }
+
+            // Frequency analysis graph
+            formsPlotFilterbank.Plot.Title("Frequency Spectrum");
+            formsPlotFilterbank.Plot.YLabel("Amplitude");
+            formsPlotFilterbank.Plot.XLabel("Frequency (Hz)");
+            _filterBankData = new double[_filterBankPlotMaxPoints];
+            formsPlotFilterbank.Plot.Add.Signal(_filterBankData);
+            AutoScaleFrequencyPlot();
+            formsPlotFilterbank.Refresh();
+
+            // Color visualization graph
+            formsPlotVisualization.Plot.Title("Color Visualization");
+            formsPlotVisualization.Plot.YLabel("Brightness");
+            formsPlotVisualization.Plot.XLabel("LED");
+            _redColorData = new double[_numLeds];
+            _greenColorData = new double[_numLeds];
+            _blueColorData = new double[_numLeds];
+            formsPlotVisualization.Plot.Add.Signal(_redColorData, color: ScottPlot.Color.FromColor(Color.Red));
+            formsPlotVisualization.Plot.Add.Signal(_greenColorData, color: ScottPlot.Color.FromColor(Color.Green));
+            formsPlotVisualization.Plot.Add.Signal(_blueColorData, color: ScottPlot.Color.FromColor(Color.Blue));
+            AutoScaleColorPlot();
+            formsPlotVisualization.Refresh();
+        }
+
+        public void AutoScaleFrequencyPlot()
+        {
+            // Add 10% to each side
+            formsPlotFilterbank.Plot.Axes
+                .SetLimits(0 - 0.1 * _filterBankPlotMaxPoints,
+                _filterBankPlotMaxPoints + 0.1 * _filterBankPlotMaxPoints,
+                -0.10,
+                1.10
+            );
+        }
+
+        public void AutoScaleColorPlot()
+        {
+            // Add 10% to each side
+            formsPlotVisualization.Plot.Axes
+                .SetLimits(0 - 0.1 * _numLeds,
+                _numLeds + 0.1 * _numLeds,
+                -0.10,
+                1.10
+            );
+        }
+
+        private void OnAudioDataAvailable(object? sender, float[] audioData)
+        {
+            if (formsPlotFilterbank.InvokeRequired)
+            {
+                formsPlotFilterbank.Invoke(new Action(() => OnAudioDataAvailable(null, audioData)));
+                return;
+            }
+
+            // Process rise, decay, and normalization for the filter bank
+            ProcessRiseAndDecay(audioData);
+
+            // Get the Visualization Data from the frequency spectrum
+            (double[] red, double[] green, double[] blue) = _audioVisualizer.VisualizeAudio(audioData, _numLeds, _audioListener.SampleRate);
+
+            Color[] colors = new Color[_redColorData.Length];
+            for (int i = 0; i < _redColorData.Length && i < red.Length; i++)
+            {
+                _redColorData[i] = red[i] * _redPowerPercent / 100.0;
+                _greenColorData[i] = green[i] * _greenPowerPercent / 100.0;
+                _blueColorData[i] = blue[i] * _bluePowerPercent / 100.0;
+
+                colors[i] = Color.FromArgb(0xFF, (byte)(_redColorData[i] * 0xFF), (byte)(_greenColorData[i] * 0xFF), (byte)(_blueColorData[i] * 0xFF));
+            }
+
+            _ = TrySendDataAsync(colors);
+            formsPlotFilterbank.Refresh();
+            formsPlotVisualization.Refresh();
+        }
+
+        // Separate function for handling rise, decay, peak tracking, and normalization
+        private void ProcessRiseAndDecay(float[] audioData)
+        {
+            const float decayFactor = 0.99f;   // Slow decay factor
+            const float riseFactor = 0.95f;    // Fast rise factor
+
+            // Track the current peak and update peak history
+            float currentPeak = audioData.Max();
+            _peakHistory.Enqueue(currentPeak);
+
+            int maxHistorySize = (int)(_windowSizeInSeconds * _audioListener.SampleRate / audioData.Length);
+            if (_peakHistory.Count > maxHistorySize)
+                _peakHistory.Dequeue();
+
+            // Calculate rolling peak and overall peak with decay
+            float rollingPeak = _peakHistory.Max();
+            _overallPeak = rollingPeak > _overallPeak ? rollingPeak : _overallPeak * _peakDecayFactor;
+
+            // Apply rise/decay and normalize the data points
+            for (int i = 0; i < Math.Min(audioData.Length, _filterBankPlotMaxPoints); i++)
+            {
+                float newDataPoint = audioData[i];
+
+                // Apply rise or decay based on new data point
+                if (newDataPoint > audioData[i])
+                {
+                    // Quick rise
+                    audioData[i] = audioData[i] * (1 - riseFactor) + newDataPoint * riseFactor;
+                }
+                else
+                {
+                    // Slow decay
+                    audioData[i] = audioData[i] * decayFactor;
+                }
+
+                // Normalize by the overall peak and update filter bank data
+                _filterBankData[i] = audioData[i] / _overallPeak;
+                audioData[i] = (float)_filterBankData[i]; // Copy back normalized value
+            }
+        }
+
+        private async Task TrySendDataAsync(Color[] colors)
+        {
+            double interval = 1000.0 / _transmissionRate;
+        
+            double timeElapsedSinceLastPacket = (DateTime.Now - _lastTransmissionTime).TotalMilliseconds;
+
+            
+            if (timeElapsedSinceLastPacket >= interval)
+            {
+                if (_delayMs > 0)
+                {
+                    await Task.Delay(_delayMs); 
+                }
+                _dataTransmission.SendData(colors);
+                _lastTransmissionTime = DateTime.Now;
+            }
         }
 
         private void LoadRunningApplications()
         {
-            listViewApplications.Items.Clear(); // Clear the ListView
-            appImageList.Images.Clear();        // Clear the ImageList
+            listViewApplications.Items.Clear();
+            appImageList.Images.Clear();
 
             var processes = Process.GetProcesses().Where(p => !string.IsNullOrWhiteSpace(p.MainWindowTitle)).ToList();
 
@@ -259,9 +254,9 @@ namespace LedAudioVisualizer
 
                     var listItem = new ListViewItem(new string[]
                     {
-                        process.ProcessName,   // Process name
-                        process.MainWindowTitle, // Window title
-                        process.Id.ToString()   // Process ID
+                        process.ProcessName,        // Process name
+                        process.MainWindowTitle,    // Window title
+                        process.Id.ToString()       // Process ID
                     });
 
                     listItem.ImageKey = process.Id.ToString();
@@ -269,44 +264,10 @@ namespace LedAudioVisualizer
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Could not retrieve icon for process {process.ProcessName}: {ex.Message}");
+                    Console.WriteLine($"Could not retrieve icon for process {process.ProcessName}: {ex.Message}");
                 }
             }
 
-            RestorePreviousSelection();
-        }
-
-        private void ListViewApplications_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (listViewApplications.SelectedItems.Count > 0)
-            {
-                if (!isStreaming)
-                {
-                    btnSelectApp.Enabled = true;
-                }
-                selectedProcessId = listViewApplications.SelectedItems[0].SubItems[2].Text;
-
-            }
-            else
-            {
-                btnSelectApp.Enabled = false;
-            }
-        }
-
-        private void SetNoAppSelectedState()
-        {
-            groupBoxSelectedApp.Visible = false;
-        }
-
-        private void buttonRefreshApps_Click(object sender, EventArgs e)
-        {
-            InitializeListView();
-            LoadRunningApplications();
-            btnSelectApp.Enabled = false;
-        }
-
-        private void RestorePreviousSelection()
-        {
             if (!string.IsNullOrEmpty(selectedProcessId))
             {
                 foreach (ListViewItem item in listViewApplications.Items)
@@ -318,32 +279,6 @@ namespace LedAudioVisualizer
                         break;
                     }
                 }
-            }
-        }
-
-        private void btnSelectApp_Click(object sender, EventArgs e)
-        {
-            if (!isStreaming && listViewApplications.SelectedItems.Count > 0)
-            {
-                DisplaySelectedAppDetails();
-                StartAudioCaptureForApp();
-                isStreaming = true;
-
-                // Disable the "Select" button and enable the "Cancel" button
-                btnSelectApp.Enabled = false;
-                btnCancel.Enabled = true;
-            }
-        }
-        private void btnCancel_Click(object sender, EventArgs e)
-        {
-            if (isStreaming)
-            {
-                _audioProcessor.StopAudioCapture();
-                isStreaming = false;
-
-                // Enable the "Select" button and disable the "Cancel" button
-                btnCancel.Enabled = false;
-                btnSelectApp.Enabled = true;
             }
         }
 
@@ -373,22 +308,80 @@ namespace LedAudioVisualizer
             }
         }
 
-        private void StartAudioCaptureForApp()
+
+        #region UI Events
+
+        private void FormMain_FormClosed(object sender, FormClosedEventArgs e)
         {
-            _audioProcessor.StopAudioCapture();
-            _audioProcessor.StartAudioCapture();
+            // Stop audio capture and exit the application
+            _audioListener.StopAudioCapture();
+            Application.Exit();
+        }
+
+        private void ListViewApplications_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (listViewApplications.SelectedItems.Count > 0)
+            {
+                if (!isStreaming)
+                {
+                    btnSelectApp.Enabled = true;
+                }
+                selectedProcessId = listViewApplications.SelectedItems[0].SubItems[2].Text;
+            }
+            else
+            {
+                btnSelectApp.Enabled = false;
+            }
+        }
+
+        private void ButtonRefreshApps_Click(object sender, EventArgs e)
+        {
+            LoadRunningApplications();
+            btnSelectApp.Enabled = false;
+        }
+
+        private void ButttonSelectApp_Click(object sender, EventArgs e)
+        {
+            if (!isStreaming && listViewApplications.SelectedItems.Count > 0)
+            {
+                DisplaySelectedAppDetails();
+                using (MMDeviceEnumerator mmDeviceEnumerator = new())
+                {
+                    MMDevice _audioDevice = mmDeviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    _audioListener = new(_audioDevice, OnAudioDataAvailable);
+                }
+                _audioListener.StopAudioCapture();
+                _audioListener.StartAudioCapture();
+                isStreaming = true;
+
+                // Disable the "Select" button and enable the "Cancel" button
+                btnSelectApp.Enabled = false;
+                btnCancel.Enabled = true;
+            }
+        }
+        private void ButtonCancel_Click(object sender, EventArgs e)
+        {
+            if (isStreaming)
+            {
+                _audioListener.StopAudioCapture();
+                isStreaming = false;
+                btnCancel.Enabled = false;
+                btnSelectApp.Enabled = true;
+            }
         }
 
         private void numericUpDownLedCount_ValueChanged(object sender, EventArgs e)
         {
-            _audioProcessor.NumLeds = (int)numericUpDownLedCount.Value;
+            _numLeds = (uint)numericUpDownLedCount.Value;
             formsPlotVisualization.Plot.Clear();
-            _redColorData = new double[_audioProcessor.NumLeds];
-            _greenColorData = new double[_audioProcessor.NumLeds];
-            _blueColorData = new double[_audioProcessor.NumLeds];
-            formsPlotVisualization.Plot.Add.Signal(_redColorData, color: ScottPlot.Color.FromColor(System.Drawing.Color.Red));
-            formsPlotVisualization.Plot.Add.Signal(_greenColorData, color: ScottPlot.Color.FromColor(System.Drawing.Color.Green));
-            formsPlotVisualization.Plot.Add.Signal(_blueColorData, color: ScottPlot.Color.FromColor(System.Drawing.Color.Blue));
+            _redColorData = new double[_numLeds];
+            _greenColorData = new double[_numLeds];
+            _blueColorData = new double[_numLeds];
+            formsPlotVisualization.Plot.Add.Signal(_redColorData, color: ScottPlot.Color.FromColor(Color.Red));
+            formsPlotVisualization.Plot.Add.Signal(_greenColorData, color: ScottPlot.Color.FromColor(Color.Green));
+            formsPlotVisualization.Plot.Add.Signal(_blueColorData, color: ScottPlot.Color.FromColor(Color.Blue));
+            AutoScaleColorPlot();
+            formsPlotVisualization.Refresh();
         }
 
         private void numericUpDown_RedMin_ValueChanged(object sender, EventArgs e)
@@ -399,12 +392,7 @@ namespace LedAudioVisualizer
                 numericUpDown_RedMax.Value = numericUpDown_RedMin.Value + 1;
             }
 
-            // Update the redMin frequency in _audioProcessor
-            _audioProcessor.redMinFreq = (int)numericUpDown_RedMin.Value;
-
-            // Update the position of the redMinLine
-            redMinLine.X = (double)numericUpDown_RedMin.Value;
-            formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
+            ((SpectrumAudioVisualizer)_audioVisualizer).redMinFreq = (int)numericUpDown_RedMin.Value;
         }
 
         private void numericUpDown_RedMax_ValueChanged(object sender, EventArgs e)
@@ -421,12 +409,7 @@ namespace LedAudioVisualizer
                 numericUpDown_GreenMin.Value = numericUpDown_RedMax.Value + 1;
             }
 
-            // Update the redMax frequency in _audioProcessor
-            _audioProcessor.redMaxFreq = (int)numericUpDown_RedMax.Value;
-
-            // Update the position of the redMaxLine
-            redMaxLine.X = (double)numericUpDown_RedMax.Value;
-            formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
+            ((SpectrumAudioVisualizer)_audioVisualizer).redMaxFreq = (int)numericUpDown_RedMax.Value;
         }
 
         private void numericUpDown_GreenMin_ValueChanged(object sender, EventArgs e)
@@ -437,12 +420,7 @@ namespace LedAudioVisualizer
                 numericUpDown_GreenMin.Value = numericUpDown_RedMax.Value + 1;
             }
 
-            // Update the greenMin frequency in _audioProcessor
-            _audioProcessor.greenMinFreq = (int)numericUpDown_GreenMin.Value;
-
-            // Update the position of the greenMinLine
-            greenMinLine.X = (double)numericUpDown_GreenMin.Value;
-            formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
+            ((SpectrumAudioVisualizer)_audioVisualizer).greenMinFreq = (int)numericUpDown_GreenMin.Value;
         }
 
         private void numericUpDown_GreenMax_ValueChanged(object sender, EventArgs e)
@@ -459,12 +437,7 @@ namespace LedAudioVisualizer
                 numericUpDown_BlueMin.Value = numericUpDown_GreenMax.Value + 1;
             }
 
-            // Update the greenMax frequency in _audioProcessor
-            _audioProcessor.greenMaxFreq = (int)numericUpDown_GreenMax.Value;
-
-            // Update the position of the greenMaxLine
-            greenMaxLine.X = (double)numericUpDown_GreenMax.Value;
-            formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
+            ((SpectrumAudioVisualizer)_audioVisualizer).greenMaxFreq = (int)numericUpDown_GreenMax.Value;
         }
 
         private void numericUpDown_BlueMin_ValueChanged(object sender, EventArgs e)
@@ -475,12 +448,7 @@ namespace LedAudioVisualizer
                 numericUpDown_BlueMin.Value = numericUpDown_GreenMax.Value + 1;
             }
 
-            // Update the blueMin frequency in _audioProcessor
-            _audioProcessor.blueMinFreq = (int)numericUpDown_BlueMin.Value;
-
-            // Update the position of the blueMinLine
-            blueMinLine.X = (double)numericUpDown_BlueMin.Value;
-            formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
+            ((SpectrumAudioVisualizer)_audioVisualizer).blueMinFreq = (int)numericUpDown_BlueMin.Value;
         }
 
         private void numericUpDown_BlueMax_ValueChanged(object sender, EventArgs e)
@@ -491,12 +459,7 @@ namespace LedAudioVisualizer
                 numericUpDown_BlueMin.Value = numericUpDown_BlueMax.Value - 1;
             }
 
-            // Update the blueMax frequency in _audioProcessor
-            _audioProcessor.blueMaxFreq = (int)numericUpDown_BlueMax.Value;
-
-            // Update the position of the blueMaxLine
-            blueMaxLine.X = (double)numericUpDown_BlueMax.Value;
-            formsPlotFilterbank.Refresh();  // Refresh the plot to update the display
+            ((SpectrumAudioVisualizer)_audioVisualizer).blueMaxFreq = (int)numericUpDown_BlueMax.Value;
         }
 
         private void radioButtonDataTransmissionRate_CheckedChanged(object sender, EventArgs e)
@@ -510,22 +473,24 @@ namespace LedAudioVisualizer
 
         private void numericUpDown_RedPower_ValueChanged(object sender, EventArgs e)
         {
-            _audioProcessor.redPower = (byte)numericUpDown_RedPower.Value;
+            _redPowerPercent = (uint)numericUpDown_RedPower.Value;
         }
 
         private void numericUpDown_GreenPower_ValueChanged(object sender, EventArgs e)
         {
-            _audioProcessor.greenPower = (byte)numericUpDown_GreenPower.Value;
+            _greenPowerPercent = (uint)numericUpDown_GreenPower.Value;
         }
 
         private void numericUpDown_BluePower_ValueChanged(object sender, EventArgs e)
         {
-            _audioProcessor.bluePower = (byte)numericUpDown_BluePower.Value;
+            _bluePowerPercent = (uint)numericUpDown_BluePower.Value;
         }
 
         private void numericUpDownDelay_ValueChanged(object sender, EventArgs e)
         {
-            _dataTransmission.DelayMs = (int)numericUpDownDelay.Value;
+            _delayMs = (int)numericUpDownDelay.Value;
         }
+
+        #endregion
     }
 }
