@@ -329,7 +329,11 @@ namespace LedAudioVisualizer
         {
             // Stop audio capture and exit the application
             ClearLedStrip();
-            _audioListener.StopAudioCapture();
+            if (_audioListener != null)
+            {
+                _audioListener.StopAudioCapture();
+            }
+            Thread.Sleep(100);
             Application.Exit();
         }
 

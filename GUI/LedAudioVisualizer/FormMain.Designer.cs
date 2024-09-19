@@ -30,6 +30,7 @@
         {
             ListViewItem listViewItem1 = new ListViewItem("Test1");
             ListViewItem listViewItem2 = new ListViewItem("Test2");
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             buttonRefreshApps = new Button();
             listViewApplications = new ListView();
             btnSelectApp = new Button();
@@ -808,6 +809,7 @@
             ClientSize = new Size(1419, 711);
             Controls.Add(tableLayoutPanel1);
             ForeColor = Color.FromArgb(245, 246, 250);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "FormMain";
             Text = "Audio Visualizer";
             ((System.ComponentModel.ISupportInitialize)pictureBoxAppIcon).EndInit();
