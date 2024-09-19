@@ -44,6 +44,11 @@ namespace LedAudioVisualizer
         {
             InitializeComponent();
 
+            _filterBankData = new double[_filterBankPlotMaxPoints];
+            _redColorData = new double[_numLeds];
+            _greenColorData = new double[_numLeds];
+            _blueColorData = new double[_numLeds];
+
             // Initialize UI
             InitializeUI();
             LoadRunningApplications();
@@ -63,10 +68,6 @@ namespace LedAudioVisualizer
             ((SpectrumAudioVisualizer)_audioVisualizer).blueMinFreq = (int)numericUpDown_BlueMin.Value;
             ((SpectrumAudioVisualizer)_audioVisualizer).blueMaxFreq = (int)numericUpDown_BlueMax.Value;
 
-            _filterBankData = new double[_numLeds];
-            _redColorData = new double[_numLeds];
-            _greenColorData = new double[_numLeds];
-            _blueColorData = new double[_numLeds];
 
             // Handle form closed event
             FormClosed += FormMain_FormClosed;
