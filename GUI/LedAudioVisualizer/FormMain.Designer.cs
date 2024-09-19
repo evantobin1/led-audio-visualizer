@@ -558,7 +558,7 @@
             numericUpDown_BluePower.Name = "numericUpDown_BluePower";
             numericUpDown_BluePower.Size = new Size(155, 23);
             numericUpDown_BluePower.TabIndex = 8;
-            numericUpDown_BluePower.Value = new decimal(new int[] { 100, 0, 0, 0 });
+            numericUpDown_BluePower.Value = new decimal(new int[] { 50, 0, 0, 0 });
             numericUpDown_BluePower.ValueChanged += numericUpDown_BluePower_ValueChanged;
             // 
             // numericUpDown_GreenPower
@@ -568,7 +568,7 @@
             numericUpDown_GreenPower.Name = "numericUpDown_GreenPower";
             numericUpDown_GreenPower.Size = new Size(155, 23);
             numericUpDown_GreenPower.TabIndex = 7;
-            numericUpDown_GreenPower.Value = new decimal(new int[] { 100, 0, 0, 0 });
+            numericUpDown_GreenPower.Value = new decimal(new int[] { 50, 0, 0, 0 });
             numericUpDown_GreenPower.ValueChanged += numericUpDown_GreenPower_ValueChanged;
             // 
             // numericUpDown_RedPower
@@ -578,7 +578,7 @@
             numericUpDown_RedPower.Name = "numericUpDown_RedPower";
             numericUpDown_RedPower.Size = new Size(155, 23);
             numericUpDown_RedPower.TabIndex = 6;
-            numericUpDown_RedPower.Value = new decimal(new int[] { 100, 0, 0, 0 });
+            numericUpDown_RedPower.Value = new decimal(new int[] { 80, 0, 0, 0 });
             numericUpDown_RedPower.ValueChanged += numericUpDown_RedPower_ValueChanged;
             // 
             // label10

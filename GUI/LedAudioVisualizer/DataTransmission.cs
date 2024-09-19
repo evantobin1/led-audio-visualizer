@@ -44,45 +44,25 @@ namespace LedAudioVisualizer
                 return;
             }
 
-            // Calculate the interval between packets based on the transmission rate (in milliseconds)
-            double interval = 1000.0 / TransmissionRate;
-
-            // Check the elapsed time since the last packet was sent
-            double timeElapsedSinceLastPacket = (DateTime.Now - _lastTransmissionTime).TotalMilliseconds;
-
-            // If it's the first transmission or if the time since the last transmission exceeds the interval
-            if (timeElapsedSinceLastPacket >= interval)
+            int totalLeds = ledData.Length;
+            int ledsSent = 0;
+            byte sequenceNumber = 0;
+            while (ledsSent < totalLeds)
             {
-                // Wait for the delay if DelayMs is greater than 0
-                if (DelayMs > 0)
-                {
-                    await Task.Delay(DelayMs);  // Apply the delay to sync with Bluetooth audio
-                }
+                // Calculate how many LEDs to send in this packet
+                int ledsInThisPacket = Math.Min(MaxLedsPerPacket, totalLeds - ledsSent);
 
-                int totalLeds = ledData.Length;
-                int ledsSent = 0;
-                byte sequenceNumber = 0;
+                // Check if this is the final packet
+                bool isFinalPacket = (ledsSent + ledsInThisPacket) >= totalLeds;
 
-                while (ledsSent < totalLeds)
-                {
-                    // Calculate how many LEDs to send in this packet
-                    int ledsInThisPacket = Math.Min(MaxLedsPerPacket, totalLeds - ledsSent);
+                // Prepare the packet
+                byte[] packetData = PreparePacket(ledData, ledsSent, ledsInThisPacket, isFinalPacket);
 
-                    // Check if this is the final packet
-                    bool isFinalPacket = (ledsSent + ledsInThisPacket) >= totalLeds;
+                // Send the packet over UDP
+                SendPacket(packetData);
 
-                    // Prepare the packet
-                    byte[] packetData = PreparePacket(ledData, ledsSent, ledsInThisPacket, isFinalPacket);
-
-                    // Send the packet over UDP
-                    SendPacket(packetData);
-
-                    ledsSent += ledsInThisPacket;
-                    sequenceNumber++;
-                }
-
-                // Record the time of this transmission
-                _lastTransmissionTime = DateTime.Now;
+                ledsSent += ledsInThisPacket;
+                sequenceNumber++;
             }
         }
 

@@ -10,6 +10,7 @@ namespace LedAudioVisualizer
         private string selectedProcessId = "";              // To store the selected Process ID
         private bool isStreaming = false;                   // To track if audio is currently being streamed
 
+        private const uint MAX_LED_COUNT = 1000;
         private uint _numLeds = 300;
         private readonly int _transmissionRate = 48;
         private int _delayMs = 0;
@@ -222,19 +223,31 @@ namespace LedAudioVisualizer
         private async Task TrySendDataAsync(Color[] colors)
         {
             double interval = 1000.0 / _transmissionRate;
-        
+
             double timeElapsedSinceLastPacket = (DateTime.Now - _lastTransmissionTime).TotalMilliseconds;
 
-            
+            // Add a bunch of 'black' pixels at the end of our packet, in case any LEDs are on that we are not including in the packet.
+            Color[] colors_with_leading_blacks = new Color[MAX_LED_COUNT];
+            Array.Copy(colors, colors_with_leading_blacks, colors.Length);
+            for (int i = colors.Length; i < MAX_LED_COUNT; i++)
+            {
+                colors_with_leading_blacks[i] = Color.Black;
+            }
+
             if (timeElapsedSinceLastPacket >= interval)
             {
                 if (_delayMs > 0)
                 {
-                    await Task.Delay(_delayMs); 
+                    await Task.Delay(_delayMs);
                 }
-                _dataTransmission.SendData(colors);
+                _dataTransmission.SendData(colors_with_leading_blacks);
                 _lastTransmissionTime = DateTime.Now;
             }
+        }
+
+        private async void ClearLedStrip()
+        {
+            await TrySendDataAsync(Array.Empty<Color>());
         }
 
         private void LoadRunningApplications()
@@ -315,6 +328,7 @@ namespace LedAudioVisualizer
         private void FormMain_FormClosed(object sender, FormClosedEventArgs e)
         {
             // Stop audio capture and exit the application
+            ClearLedStrip();
             _audioListener.StopAudioCapture();
             Application.Exit();
         }
@@ -364,6 +378,7 @@ namespace LedAudioVisualizer
         {
             if (isStreaming)
             {
+                ClearLedStrip();
                 _audioListener.StopAudioCapture();
                 isStreaming = false;
                 btnCancel.Enabled = false;
