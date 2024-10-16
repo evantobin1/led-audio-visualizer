@@ -14,8 +14,9 @@
     <ApplicationIcon>LedAudioVisualizerIcon.ico</ApplicationIcon>
     <StartupObject>LedAudioVisualizer.Program</StartupObject>
     <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win10-x86</RuntimeIdentifier>
-    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win10-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>AnyCPU;ARM64;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
